@@ -14,7 +14,7 @@ import os
 from numpy import nan as NA
 from os.path import join, getsize
 
-WorkPath = 'E:/_Projects/Personal/SVN/_Projects/Python/TianmaFinance'
+WorkPath = 'D:/_Projects/Personal/SVN/_Projects/Python/TianmaFinance'
 os.chdir(WorkPath)
 
 StatRule1 = pd.read_excel('静态表.xlsx',index_col = 0)
@@ -69,16 +69,21 @@ class StatFileClass:
         self.ClassifyResult = Series(np.zeros(self.IncomeData.shape[0]))  #初始化
         for i in range(self.KeyWord2.shape[0]):
             TempData = list(ClassifyRuleDF.ix[self.BankName].ix[self.IncomeType[i]].ix[self.KeyWord1[i]].index)
-            bFindResult = False
-            for j in TempData:
-                if j in A.KeyWord2[i]:
-                    A.KeyWord2[i] = j
-                    bFindResult = True
-                    break
-            if not bFindResult:
-                A.KeyWord2[i] = '无'
-            self.ClassifyResult[i] = ClassifyRuleDF.ix[self.BankName].ix[self.IncomeType[i]].ix[self.KeyWord1[i]].ix[self.KeyWord2[i]]
-            
+            if len(TempData) == 1: #子类字段只有一个
+                self.KeyWord2[i] = TempData[0]
+            else:
+                bFindResult = False
+                for j in TempData:
+                    if j in self.KeyWord2[i]:
+                        self.KeyWord2[i] = j
+                        bFindResult = True
+                        break
+                if not bFindResult:
+                    self.KeyWord2[i] = '无'
+            if self.KeyWord2[i] in TempData:                
+                self.ClassifyResult[i] = ClassifyRuleDF.ix[self.BankName].ix[self.IncomeType[i]].ix[self.KeyWord1[i]].ix[self.KeyWord2[i]]
+            else:
+                self.ClassifyResult[i] = '分类错误'
         
         #if StatRule1.ix[self.BankName,'收入字段'] != StatRule1.ix[self.BankName,'支出字段']:       
 
@@ -93,14 +98,26 @@ for FileName in os.listdir(WorkPath):
 B = pd.read_excel('农业银行.xls',skiprows = StatRule1.ix['农业银行','数据开始行']-1, converters = {'收入金额' : str})
 
 A = StatFileClass('中国银行.xls')
+A = StatFileClass('农业银行.xls')
+A = StatFileClass('招商银行.xlsx')
 A.KeyWord2[:] = '无'
-for i in range(A.KeyWord2.shape[0]):
-    if A.KeyWord2[i] not in list(ClassifyRuleDF.ix[A.BankName].ix[A.IncomeType[i]].ix[A.KeyWord1[i]].index):
-        A.KeyWord2[i] = '无'
-    C = list(ClassifyRuleDF.ix[A.BankName].ix[A.IncomeType[i]].ix[A.KeyWord1[i]].index)
-    for j in C:
+i = 0
+TempData = list(ClassifyRuleDF.ix[A.BankName].ix[A.IncomeType[i]].ix[A.KeyWord1[i]].index)
+if len(TempData) == 1:
+    A.KeyWord2[i] = TempData[0]
+else:
+    bFindResult = False
+    for j in TempData:
         if j in A.KeyWord2[i]:
             A.KeyWord2[i] = j
+            bFindResult = True
+            break
+    if not bFindResult:
+        A.KeyWord2[i] = '无'
+A.ClassifyResult[i] = ClassifyRuleDF.ix[A.BankName].ix[A.IncomeType[i]].ix[A.KeyWord1[i]].ix[A.KeyWord2[i]]
+i += 1
+
+            
 for i in range(A.KeyWord2.shape[0]):        
     print(ClassifyRuleDF.ix[A.BankName].ix[A.IncomeType[i]].ix[A.KeyWord1[i]])
 ClassifyRuleDF.ix[A.BankName].ix[A.IncomeType[1]].ix[A.KeyWord1[1]]
@@ -109,3 +126,4 @@ B = ClassifyRuleDF.ix[A.BankName].ix[A.IncomeType[1]]
 C = list(ClassifyRuleDF.ix[A.BankName].ix[A.IncomeType[1]].ix[A.KeyWord1[1]].index)
 for j in C:
     print(j)
+    
