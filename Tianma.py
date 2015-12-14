@@ -14,7 +14,7 @@ import os
 from numpy import nan as NA
 from os.path import join, getsize
 
-WorkPath = 'D:/_Projects/Personal/SVN/_Projects/Python/TianmaFinance'
+WorkPath = 'E:/_Projects/Personal/SVN/_Projects/Python/TianmaFinance'
 os.chdir(WorkPath)
 
 StatRule1 = pd.read_excel('静态表.xlsx',index_col = 0)
@@ -26,6 +26,7 @@ ClassifyRuleDF.ix['招商银行'].ix['支出'].ix['对公售汇'].ix['无']
 class StatFileClass:
     def __init__(self,temp=0):
         self.FileName = temp
+        self.FileNameHead = self.FileName[0:self.FileName.find('.')]
         self.BankName = self.FileName[0:self.FileName.find('银行')+2]
         if '美元' in temp:
             self.Currency = 'USD'
@@ -84,46 +85,21 @@ class StatFileClass:
                 self.ClassifyResult[i] = ClassifyRuleDF.ix[self.BankName].ix[self.IncomeType[i]].ix[self.KeyWord1[i]].ix[self.KeyWord2[i]]
             else:
                 self.ClassifyResult[i] = '分类错误'
-        
-        #if StatRule1.ix[self.BankName,'收入字段'] != StatRule1.ix[self.BankName,'支出字段']:       
+        if self.IncomeLable == self.PayLable: 
+            self.ResultDF = pd.concat([self.IncomeData,self.IncomeType,self.KeyWord1,self.KeyWord2,self.ClassifyResult],axis = 1)
+            self.ResultDF.columns = ['收入','收支类型','大类','子类','分类结果']
+        else:
+            self.ResultDF = pd.concat([self.IncomeData,self.PayData,self.IncomeType,self.KeyWord1,self.KeyWord2,self.ClassifyResult],axis = 1)
+            self.ResultDF.columns = ['收入','支出','收支类型','大类','子类','分类结果']
+        self.ResultFileName = self.FileNameHead + '分类结果.xlsx'       
+        self.ResultDF.to_excel(self.ResultFileName,self.FileNameHead)
 
-index = 0
-A = locals()
+
 for FileName in os.listdir(WorkPath):
-    if ('银行'  in FileName) and ('xls' in FileName):
-        index += 1
-        print(FileName)
-        A['StatFile' + str(index)] = StatFileClass(FileName);
+    if ('银行'  in FileName) and ('xls' in FileName) and ('分类结果' not in FileName):
+        print('正在处理:' + FileName)
+        StatFileClass(FileName);
+print('处理完毕!')
         
-B = pd.read_excel('农业银行.xls',skiprows = StatRule1.ix['农业银行','数据开始行']-1, converters = {'收入金额' : str})
 
-A = StatFileClass('中国银行.xls')
-A = StatFileClass('农业银行.xls')
-A = StatFileClass('招商银行.xlsx')
-A.KeyWord2[:] = '无'
-i = 0
-TempData = list(ClassifyRuleDF.ix[A.BankName].ix[A.IncomeType[i]].ix[A.KeyWord1[i]].index)
-if len(TempData) == 1:
-    A.KeyWord2[i] = TempData[0]
-else:
-    bFindResult = False
-    for j in TempData:
-        if j in A.KeyWord2[i]:
-            A.KeyWord2[i] = j
-            bFindResult = True
-            break
-    if not bFindResult:
-        A.KeyWord2[i] = '无'
-A.ClassifyResult[i] = ClassifyRuleDF.ix[A.BankName].ix[A.IncomeType[i]].ix[A.KeyWord1[i]].ix[A.KeyWord2[i]]
-i += 1
-
-            
-for i in range(A.KeyWord2.shape[0]):        
-    print(ClassifyRuleDF.ix[A.BankName].ix[A.IncomeType[i]].ix[A.KeyWord1[i]])
-ClassifyRuleDF.ix[A.BankName].ix[A.IncomeType[1]].ix[A.KeyWord1[1]]
-ClassifyRuleDF.ix[A.BankName]
-B = ClassifyRuleDF.ix[A.BankName].ix[A.IncomeType[1]]
-C = list(ClassifyRuleDF.ix[A.BankName].ix[A.IncomeType[1]].ix[A.KeyWord1[1]].index)
-for j in C:
-    print(j)
     
