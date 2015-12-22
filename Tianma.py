@@ -23,7 +23,7 @@ import os
 from numpy import nan as NA
 from os.path import join, getsize
 
-WorkPath = 'E:/_Projects/Personal/SVN/_Projects/Python/TianmaFinance'
+WorkPath = 'D:/_Projects/Personal/SVN/_Projects/Python/TianmaFinance'
 os.chdir(WorkPath)
 
 WorkPath = os.getcwd()
@@ -60,6 +60,9 @@ class StatFileClass:
         self.CountLable = StatRule1.ix[self.BankName,'户名字段']
         self.SkipRows = StatRule1.ix[self.BankName,'数据开始行']-1
         
+        
+        
+        
         #判断收入支出类型
         if self.IncomeLable == self.PayLable: #中国银行,收入字段和支出字段相同
             self.RawData = pd.read_excel(self.FileName,skiprows = self.SkipRows,converters = {self.IncomeLable : str})
@@ -80,6 +83,9 @@ class StatFileClass:
                     self.IncomeType[i] = '收入'
                 else:
                     self.IncomeType[i] = '支出'
+                    
+        #处理日期数据
+        self.Date =  self.RawData.ix[:,self.DateLable].astype(str)        
                     
         #获取大类数据
         self.KeyWord1 = Series(np.zeros(self.IncomeData.shape[0]))  #初始化
@@ -110,43 +116,42 @@ class StatFileClass:
                         self.CountName[i] = '无'
                         
         #获取子类数据并分类
-        self.KeyWord2 = self.RawData.ix[:,self.KeyLable2]
-        self.KeyWord2.fillna('无',inplace = True)
+        self.KeyWord2 = Series(np.zeros(self.IncomeData.shape[0]))  #初始化
+        self.KeyData2 = self.RawData.ix[:,self.KeyLable2]
+        self.KeyData2.fillna(' ',inplace = True) #由于有多个关键字段，空值不能赋为'无'，而是空格
         self.ClassifyResult = Series(np.zeros(self.IncomeData.shape[0]))  #初始化
-        for i in range(self.KeyWord2.shape[0]):
+        for i in range(self.KeyData2.shape[0]):
             TempData = list(set(list(ClassifyRuleDF.ix[self.BankName].ix[self.IncomeType[i]].ix[self.KeyWord1[i]].ix[self.CountName[i]].index)))
             if len(TempData) == 1: #子类字段只有一个
                 self.KeyWord2[i] = TempData[0]
             else:
+                TempKeyWord = [m.split('+') for m in TempData]   #按分隔符分割关键字
+                TempKeyWord.sort(key = lambda x:len(x),reverse = True) #按关键字个数排序；关键字越多，排序越靠前
                 bFindResult = False
-                for j in TempData:
-                    IterList = j.split('+')
+                for j in TempKeyWord:
                     bFindResult2 = True
-                    for k in IterList:
-                        bFindResult3 = False
-                        for m in list(self.KeyWord2.ix[i]):
-                            if k in m:
-                                bFindResult3 = True
-                                break
-                        if not bFindResult3:
-                           bFindResult2 = False
-                           break
-                    if bFindResult2:
-                        self.KeyWord2[i] = j
-                        bFindResult = True
-                        break
+                    for k in j:
+                        if k not in str(list(self.KeyData2.ix[i])):   #只要有一个关键字不匹配，则放弃搜索该关键字           
+                            bFindResult2 = False
+                            break
+                    if bFindResult2:    #全部关键字匹配，则认为匹配成功
+                       self.KeyWord2[i] = '+'.join(j) #用+号重新连接为表中的关键字
+                       bFindResult = True                      
+                       break
                 if not bFindResult:
                     self.KeyWord2[i] = '无'
             if self.KeyWord2[i] in TempData:                
                 self.ClassifyResult[i] = ClassifyRuleDF.ix[self.BankName].ix[self.IncomeType[i]].ix[self.KeyWord1[i]].ix[self.CountName[i]].ix[self.KeyWord2[i]]
+                if type(self.ClassifyResult[i]) != str: #如果出现多个分类结果，取第一个;
+                    self.ClassifyResult[i] = self.ClassifyResult[i].ix[0]
             else:
                 self.ClassifyResult[i] = '分类错误'
         if self.IncomeLable == self.PayLable: 
-            self.ResultDF = pd.concat([self.IncomeData,self.IncomeType,self.KeyWord1,self.CountName,self.KeyWord2,self.ClassifyResult],axis = 1)
-            self.ResultDF.columns = ['收入','收支类型','大类','对方户名','子类','分类结果']
+            self.ResultDF = pd.concat([self.Date,self.IncomeData,self.IncomeType,self.KeyWord1,self.CountName,self.KeyWord2,self.ClassifyResult],axis = 1)
+            self.ResultDF.columns = ['交易日期','收入','收支类型','大类','对方户名','子类','分类结果']
         else:
-            self.ResultDF = pd.concat([self.IncomeData,self.PayData,self.IncomeType,self.KeyWord1,self.CountName,self.KeyWord2,self.ClassifyResult],axis = 1)
-            self.ResultDF.columns = ['收入','支出','收支类型','大类','对方户名','子类','分类结果']
+            self.ResultDF = pd.concat([self.Date,self.IncomeData,self.PayData,self.IncomeType,self.KeyWord1,self.CountName,self.KeyWord2,self.ClassifyResult],axis = 1)
+            self.ResultDF.columns = ['交易日期','收入','支出','收支类型','大类','对方户名','子类','分类结果']
         self.ResultFileName = ResultPath + '/' +self.FileNameHead + '分类结果.xlsx'       
         self.ResultDF.to_excel(self.ResultFileName,self.FileNameHead)
 
@@ -157,48 +162,6 @@ for FileName in os.listdir(DataPath):
         StatFileClass(FileName);
 print('处理完毕!')
         
-A = StatFileClass('中国银行美元一般户.xls')
-A = StatFileClass('中国银行.xls')
 
-A.CountName = Series(np.zeros(A.IncomeData.shape[0]))  #初始化
-if A.CountLable == '无':
-    A.CountName[:] = '无'
-else:
-    A.CountData = A.RawData.ix[:,A.CountLable]
-    for i in range(A.IncomeData.shape[0]):
-        TempData = list(set(list(zip(*list(ClassifyRuleDF.ix[A.BankName].ix[A.IncomeType[i]].ix[A.KeyWord1[i]].index)))[0])) #获取户名的唯一值的list
-        if len(TempData) == 1: #子类字段只有一个
-            A.CountName[i] = TempData[0]
-        else:
-            bFindResult = False
-            for j in TempData:
-                if j in A.CountData[i]:
-                    A.CountName[i] = j
-                    bFindResult = True
-                    break
-            if not bFindResult:
-                A.CountName[i] = '无'
 
-A.KeyWord2 = A.RawData.ix[:,A.KeyLable2]
-A.KeyWord2.fillna('无',inplace = True)
-A.ClassifyResult = Series(np.zeros(A.IncomeData.shape[0]))  #初始化
-for i in range(A.KeyWord2.shape[0]):
-    TempData = list(ClassifyRuleDF.ix[A.BankName].ix[A.IncomeType[i]].ix[A.KeyWord1[i]].index)
-    if len(TempData) == 1: #子类字段只有一个
-        A.KeyWord2[i] = TempData[0]
-    else:
-        bFindResult = False
-        for j in TempData:
-            if j in A.KeyWord2[i]:
-                A.KeyWord2[i] = j
-                bFindResult = True
-                break
-        if not bFindResult:
-            A.KeyWord2[i] = '无'
-    if A.KeyWord2[i] in TempData:                
-        A.ClassifyResult[i] = ClassifyRuleDF.ix[A.BankName].ix[A.IncomeType[i]].ix[A.KeyWord1[i]].ix[A.KeyWord2[i]]
-    else:
-        A.ClassifyResult[i] = '分类错误'
 
-i+=1
-C = list(set(list(zip(*list(ClassifyRuleDF.ix[A.BankName].ix[A.IncomeType[i]].ix[A.KeyWord1[i]].index)))[0]))
