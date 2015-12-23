@@ -23,8 +23,8 @@ import os
 from numpy import nan as NA
 from os.path import join, getsize
 
-WorkPath = 'D:/_Projects/Personal/SVN/_Projects/Python/TianmaFinance'
-os.chdir(WorkPath)
+#WorkPath = 'D:/_Projects/Personal/SVN/_Projects/Python/TianmaFinance'
+#os.chdir(WorkPath)
 
 WorkPath = os.getcwd()
 DataPath = WorkPath + '/Data'
