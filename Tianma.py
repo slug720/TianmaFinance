@@ -23,8 +23,8 @@ import os
 from numpy import nan as NA
 from os.path import join, getsize
 
-#WorkPath = 'D:/_Projects/Personal/SVN/_Projects/Python/TianmaFinance'
-#os.chdir(WorkPath)
+WorkPath = 'E:/_Projects/Personal/SVN/_Projects/Python/TianmaFinance'
+os.chdir(WorkPath)
 
 WorkPath = os.getcwd()
 DataPath = WorkPath + '/Data'
@@ -37,10 +37,19 @@ StatRule1 = pd.read_excel(WorkPath + '/静态表.xlsx',index_col = 0) #第一页
 StatRule2 = pd.read_excel(WorkPath + '/静态表.xlsx',1) #第二页读取分类规则
 ClassifyRuleDF = StatRule2.ix[:,'最终结果']
 ClassifyRuleDF.index = [StatRule2.银行,StatRule2.收支,StatRule2.大类,StatRule2.对方户名,StatRule2.关键字]
+FinalResultRule = StatRule2.reindex(columns = ['收支','最终结果']).drop_duplicates()
+FinalResultRule.index = FinalResultRule.ix[:,'收支']
+FinalResultRule = FinalResultRule.reindex(columns = ['最终结果'])
+FinalResultIncome = FinalResultRule.ix['收入',:]
+FinalResultPayment = FinalResultRule.ix['支出',:]
+FinalSummary = NA
 
+
+Writer = pd.ExcelWriter(ResultPath  + '/分类结果.xlsx')
 os.chdir(DataPath)
 
 class StatFileClass:
+    global FinalSummary
     def __init__(self,temp=0):
         self.FileName = temp
         self.FileNameHead = self.FileName[0:self.FileName.find('.')]
@@ -51,6 +60,12 @@ class StatFileClass:
             self.Currency = 'JPY'
         else:
             self.Currency = 'CNY'
+        if '待核查' in temp:
+            self.CountType = '待核查'
+        elif '专户' in temp:
+            self.CountType = '专户'
+        else:
+            self.CountType = '一般户'
         self.DateLable = StatRule1.ix[self.BankName,'交易日期字段']
         self.IncomeLable = StatRule1.ix[self.BankName,'收入字段']
         self.PayLable = StatRule1.ix[self.BankName,'支出字段']
@@ -60,29 +75,22 @@ class StatFileClass:
         self.CountLable = StatRule1.ix[self.BankName,'户名字段']
         self.SkipRows = StatRule1.ix[self.BankName,'数据开始行']-1
         
-        
-        
-        
         #判断收入支出类型
-        if self.IncomeLable == self.PayLable: #中国银行,收入字段和支出字段相同
-            self.RawData = pd.read_excel(self.FileName,skiprows = self.SkipRows,converters = {self.IncomeLable : str})
-            self.IncomeData =  self.RawData.ix[:,self.IncomeLable].astype(float)
-            self.IncomeType = Series(np.zeros(self.IncomeData.shape[0])) #初始化
-            for i in range(self.IncomeData.shape[0]):
-                if self.IncomeData[i] > 0:
-                    self.IncomeType[i] = '收入'
-                else:
-                    self.IncomeType[i] = '支出'                  
-        else:
+        if self.IncomeLable != self.PayLable: #非中国银行，将收入和支出合并
             self.RawData = pd.read_excel(self.FileName,skiprows = self.SkipRows,converters = {self.IncomeLable : str, self.PayLable : str})
             self.IncomeData =  self.RawData.ix[:,self.IncomeLable].astype(float).fillna(0)
             self.PayData =  self.RawData.ix[:,self.PayLable].astype(float).fillna(0)
-            self.IncomeType = Series(np.zeros(self.IncomeData.shape[0])) #初始化
-            for i in range(self.IncomeData.shape[0]):
-                if self.IncomeData[i] > self.PayData[i]:
-                    self.IncomeType[i] = '收入'
-                else:
-                    self.IncomeType[i] = '支出'
+            self.IncomeData = self.IncomeData -  self.PayData
+        else:
+            self.RawData = pd.read_excel(self.FileName,skiprows = self.SkipRows,converters = {self.IncomeLable : str})
+            self.IncomeData =  self.RawData.ix[:,self.IncomeLable].astype(float)
+        self.IncomeType = Series(np.zeros(self.IncomeData.shape[0])) #初始化
+        for i in range(self.IncomeData.shape[0]):
+            if self.IncomeData[i] > 0:
+                self.IncomeType[i] = '收入'
+            else:
+                self.IncomeType[i] = '支出'  
+      
                     
         #处理日期数据
         self.Date =  self.RawData.ix[:,self.DateLable].astype(str)        
@@ -146,22 +154,46 @@ class StatFileClass:
                     self.ClassifyResult[i] = self.ClassifyResult[i].ix[0]
             else:
                 self.ClassifyResult[i] = '分类错误'
-        if self.IncomeLable == self.PayLable: 
-            self.ResultDF = pd.concat([self.Date,self.IncomeData,self.IncomeType,self.KeyWord1,self.CountName,self.KeyWord2,self.ClassifyResult],axis = 1)
-            self.ResultDF.columns = ['交易日期','收入','收支类型','大类','对方户名','子类','分类结果']
-        else:
-            self.ResultDF = pd.concat([self.Date,self.IncomeData,self.PayData,self.IncomeType,self.KeyWord1,self.CountName,self.KeyWord2,self.ClassifyResult],axis = 1)
-            self.ResultDF.columns = ['交易日期','收入','支出','收支类型','大类','对方户名','子类','分类结果']
-        self.ResultFileName = ResultPath + '/' +self.FileNameHead + '分类结果.xlsx'       
-        self.ResultDF.to_excel(self.ResultFileName,self.FileNameHead)
+
+        #产生当日分类汇总
+        self.Summary = self.IncomeData.copy()
+        self.Summary.index = [self.Date,self.IncomeType,self.ClassifyResult]
+        TempIndex = set(list(self.Summary.index)) #合并日期、收入类型、分类结果都相同的项
+        TempData = [self.Summary.ix[i].sum() for i in TempIndex]
+        self.Summary = DataFrame(TempData,index = TempIndex)
+        self.Summary.ix[:,'银行名称'] = self.BankName
+        TempIndex = list(zip(*list(TempIndex)))
+        self.Summary.index = TempIndex[0]
+        self.Summary.ix[:,'收支类型'] = TempIndex[1]
+        self.Summary.ix[:,'分类结果'] = TempIndex[2]
+
+        #结果输出
+        self.ResultDF = pd.concat([self.Date,self.IncomeData,self.IncomeType,self.KeyWord1,self.CountName,self.KeyWord2,self.ClassifyResult],axis = 1)
+        self.ResultDF.columns = ['交易日期','收入','收支类型','大类','对方户名','子类','分类结果']   
+        #self.ResultFileName = ResultPath + '/' +self.FileNameHead + '分类结果.xlsx'       
+        self.ResultDF.to_excel(Writer,self.FileNameHead,index = False)
 
 
-for FileName in os.listdir(DataPath):
-    if ('银行'  in FileName) and ('xls' in FileName) and ('分类结果' not in FileName):
-        print('正在处理:' + FileName)
-        StatFileClass(FileName);
-print('处理完毕!')
-        
+#==============================================================================
+# for FileName in os.listdir(DataPath):
+#     if ('银行'  in FileName) and ('xls' in FileName) and ('分类结果' not in FileName):
+#         print('正在处理:' + FileName)
+#         StatFileClass(FileName);  
+# Writer.save()
+# print('处理完毕!')
+#==============================================================================
+A = StatFileClass('中国银行.xls').Summary; 
+#FinalSummary.to_excel(Writer,'分类汇总',header = False)
+#Writer.save()
+#==============================================================================
+# A = StatFileClass('农业银行.xls'); 
+# B = A.IncomeData.copy()
+# B.index = [A.Date,A.IncomeType,A.ClassifyResult]
+# C = set(list(B.index))
+# D = [B.ix[i].sum() for i in C]
+# E = DataFrame(D,index = C)
+# E.ix[:,'银行名称'] = '农业银行'
+#==============================================================================
 
 
 
