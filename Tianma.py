@@ -24,7 +24,7 @@ from datetime import *
 from numpy import nan as NA
 from dateutil.parser import parse
 
-WorkPath = 'E:/_Projects/Personal/SVN/_Projects/Python/TianmaFinance'
+WorkPath = 'D:/_Projects/Personal/SVN/_Projects/Python/TianmaFinance'
 os.chdir(WorkPath)
 
 WorkPath = os.getcwd()
@@ -43,7 +43,7 @@ FinalResultRule.index = FinalResultRule['收支']
 FinalResultRule = FinalResultRule.reindex(columns = ['最终结果'])
 FinalResultIncome = FinalResultRule.ix['收入',:]
 FinalResultPayment = FinalResultRule.ix['支出',:]
-FinalDetail = DataFrame([NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA],index = ['交易日期', '交易时间', '收入', '本币收入', '收支类型', '大类', '对方户名', '子类', '分类结果',
+FinalDetail = DataFrame([NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA],index = ['交易日期', '交易时间', '收入', '本币收入', '余额','本币余额','收支类型', '大类', '对方户名', '子类', '分类结果',
        '银行名称', '账户类型', '币种']).T
 #FinalSummary = DataFrame([NA,NA,NA,NA,NA,NA,NA,NA],index = ['原币收入', '本币收入','银行名称', '账户类型', '币种', '交易日期', '收支类型', '分类结果']).T
 
@@ -85,12 +85,12 @@ class StatFileClass:
         
         #判断收入支出类型
         if self.IncomeLable != self.PayLable: #非中国银行，将收入和支出合并
-            self.RawData = pd.read_excel(self.FileName,skiprows = self.SkipRows,converters = {self.IncomeLable : str, self.PayLable : str})
+            self.RawData = pd.read_excel(self.FileName,skiprows = self.SkipRows,converters = {self.IncomeLable : str, self.PayLable : str,self.BalanceLable : str})
             self.IncomeData =  self.RawData[self.IncomeLable].astype(float).fillna(0)
             self.PayData =  self.RawData[self.PayLable].astype(float).fillna(0)
             self.IncomeData = self.IncomeData -  self.PayData
         else:
-            self.RawData = pd.read_excel(self.FileName,skiprows = self.SkipRows,converters = {self.IncomeLable : str})
+            self.RawData = pd.read_excel(self.FileName,skiprows = self.SkipRows,converters = {self.IncomeLable : str,self.BalanceLable : str})
             self.IncomeData =  self.RawData[self.IncomeLable].astype(float)
         self.IncomeType = Series(np.zeros(self.IncomeData.shape[0])) #初始化
         for i in range(self.IncomeData.shape[0]):
@@ -98,12 +98,21 @@ class StatFileClass:
                 self.IncomeType[i] = '收入'
             else:
                 self.IncomeType[i] = '支出'  
-        #计算本币金额
+        #余额数据导入
+        #self.BalanceData =  self.RawData[self.BalanceLable].astype(float)
+        self.BalanceData =  self.RawData[self.BalanceLable]
+        for i in self.BalanceData.index:
+            self.BalanceData[i] = self.BalanceData[i].replace(',','')
+        #self.BalanceData.astype(float)
+        #计算本币收入及余额
         self.IncomeDataLocal = self.IncomeData
+        self.BalanceDataLocal = self.BalanceData
         if self.Currency == 'USD':
             self.IncomeDataLocal = self.IncomeData * self.ERateUSD
+            self.BalanceDataLocal = self.BalanceData * self.ERateUSD
         elif self.Currency == 'JPY':
             self.IncomeDataLocal = self.IncomeData * self.ERateJPY
+            self.BalanceDataLocal = self.BalanceData * self.ERateJPY
         
       
                     
@@ -198,11 +207,12 @@ class StatFileClass:
 # 
 #==============================================================================
         #结果输出
-        self.ResultDF = pd.concat([self.Date,self.Time,self.IncomeData,self.IncomeDataLocal,self.IncomeType,self.KeyWord1,self.CountName,self.KeyWord2,self.ClassifyResult],axis = 1)
-        self.ResultDF.columns = ['交易日期','交易时间','收入','本币收入','收支类型','大类','对方户名','子类','分类结果'] 
+        self.ResultDF = pd.concat([self.Date,self.Time,self.IncomeData,self.IncomeDataLocal,self.BalanceData,self.BalanceDataLocal,self.IncomeType,self.KeyWord1,self.CountName,self.KeyWord2,self.ClassifyResult],axis = 1)
+        self.ResultDF.columns = ['交易日期','交易时间','收入','本币收入','余额','本币余额','收支类型','大类','对方户名','子类','分类结果'] 
         self.ResultDF['银行名称'] = self.BankName
         self.ResultDF['账户类型'] = self.CountType
         self.ResultDF['币种'] = self.Currency
+        self.LastBalance = self.ResultDF.reindex(columns = ['交易日期','余额','本币余额','银行名称','账户类型','币种'])
         #self.ResultFileName = ResultPath + '/' +self.FileNameHead + '分类结果.xlsx'       
         #self.ResultDF.to_excel(Writer,self.FileNameHead,index = False)
 
@@ -216,8 +226,8 @@ def ProcessFiles(DataPath,Writer):
             #FinalSummary = pd.concat([FinalSummary,TempClass.Summary])
     FinalDetail.dropna(how = 'all',inplace = True)   #去掉第一行
     #FinalSummary.dropna(how = 'all',inplace = True)   #去掉第一行
-    DaySummary = FinalDetail.groupby(['交易日期','收支类型','分类结果']).sum()
-    DaySummary.drop(['收入'],axis = 1,inplace = True)
+    DaySummary = FinalDetail.groupby(['交易日期','收支类型','分类结果'])['本币收入'].sum()
+    #DaySummary.drop(['收入'],axis = 1,inplace = True)
     BankSummary = FinalDetail.groupby(['交易日期','账户类型','银行名称','币种']).sum()
     FinalDetail.to_excel(Writer,'明细汇总')
     #FinalSummary.to_excel(Writer,'分类汇总')
@@ -226,7 +236,8 @@ def ProcessFiles(DataPath,Writer):
     Writer.save()
     print('处理完毕!')
     
-ProcessFiles(DataPath,Writer)
+#ProcessFiles(DataPath,Writer)
+A = StatFileClass('中国银行.xls'); 
 #A = StatFileClass('农业银行.xls'); 
 #B = A.Summary
 #FinalSummary.to_excel(Writer,'分类汇总',header = False)
