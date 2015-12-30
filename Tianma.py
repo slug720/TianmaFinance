@@ -24,7 +24,7 @@ from datetime import *
 from numpy import nan as NA
 from dateutil.parser import parse
 
-WorkPath = 'D:/_Projects/Personal/SVN/_Projects/Python/TianmaFinance'
+WorkPath = 'E:/_Projects/Personal/SVN/_Projects/Python/TianmaFinance'
 os.chdir(WorkPath)
 
 WorkPath = os.getcwd()
@@ -85,12 +85,12 @@ class StatFileClass:
         
         #判断收入支出类型
         if self.IncomeLable != self.PayLable: #非中国银行，将收入和支出合并
-            self.RawData = pd.read_excel(self.FileName,skiprows = self.SkipRows,converters = {self.IncomeLable : str, self.PayLable : str,self.BalanceLable : str})
+            self.RawData = pd.read_excel(self.FileName,skiprows = self.SkipRows,converters = {self.IncomeLable : str, self.PayLable : str,self.BalanceLable : RemoveComma})
             self.IncomeData =  self.RawData[self.IncomeLable].astype(float).fillna(0)
             self.PayData =  self.RawData[self.PayLable].astype(float).fillna(0)
             self.IncomeData = self.IncomeData -  self.PayData
         else:
-            self.RawData = pd.read_excel(self.FileName,skiprows = self.SkipRows,converters = {self.IncomeLable : str,self.BalanceLable : str})
+            self.RawData = pd.read_excel(self.FileName,skiprows = self.SkipRows,converters = {self.IncomeLable : str,self.BalanceLable : RemoveComma})
             self.IncomeData =  self.RawData[self.IncomeLable].astype(float)
         self.IncomeType = Series(np.zeros(self.IncomeData.shape[0])) #初始化
         for i in range(self.IncomeData.shape[0]):
@@ -99,10 +99,10 @@ class StatFileClass:
             else:
                 self.IncomeType[i] = '支出'  
         #余额数据导入
-        #self.BalanceData =  self.RawData[self.BalanceLable].astype(float)
-        self.BalanceData =  self.RawData[self.BalanceLable]
-        for i in self.BalanceData.index:
-            self.BalanceData[i] = self.BalanceData[i].replace(',','')
+        self.BalanceData =  self.RawData[self.BalanceLable].astype(float)
+#        self.BalanceData =  self.RawData[self.BalanceLable]
+#        for i in self.BalanceData.index:
+#            self.BalanceData[i] = self.BalanceData[i].replace(',','')
         #self.BalanceData.astype(float)
         #计算本币收入及余额
         self.IncomeDataLocal = self.IncomeData
@@ -226,8 +226,9 @@ def ProcessFiles(DataPath,Writer):
             #FinalSummary = pd.concat([FinalSummary,TempClass.Summary])
     FinalDetail.dropna(how = 'all',inplace = True)   #去掉第一行
     #FinalSummary.dropna(how = 'all',inplace = True)   #去掉第一行
-    DaySummary = FinalDetail.groupby(['交易日期','收支类型','分类结果'])['本币收入'].sum()
-    #DaySummary.drop(['收入'],axis = 1,inplace = True)
+    #DaySummary = FinalDetail.groupby(['交易日期','收支类型','分类结果'])['本币收入'].sum()
+    DaySummary = FinalDetail.groupby(['交易日期','收支类型','分类结果']).sum()
+    DaySummary.drop(['收入'],axis = 1,inplace = True)
     BankSummary = FinalDetail.groupby(['交易日期','账户类型','银行名称','币种']).sum()
     FinalDetail.to_excel(Writer,'明细汇总')
     #FinalSummary.to_excel(Writer,'分类汇总')
@@ -235,9 +236,15 @@ def ProcessFiles(DataPath,Writer):
     BankSummary.to_excel(Writer,'银行汇总')
     Writer.save()
     print('处理完毕!')
+
+def RemoveComma(sValue):
+    if type(sValue) == str:
+        return sValue.replace(',','')
+    else:
+        return sValue
     
-#ProcessFiles(DataPath,Writer)
-A = StatFileClass('中国银行.xls'); 
+ProcessFiles(DataPath,Writer)
+#A = StatFileClass('中国银行.xls'); 
 #A = StatFileClass('农业银行.xls'); 
 #B = A.Summary
 #FinalSummary.to_excel(Writer,'分类汇总',header = False)
