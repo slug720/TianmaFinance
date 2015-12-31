@@ -24,7 +24,7 @@ from datetime import *
 from numpy import nan as NA
 from dateutil.parser import parse
 
-WorkPath = 'E:/_Projects/Personal/SVN/_Projects/Python/TianmaFinance'
+WorkPath = 'D:/_Projects/Personal/SVN/_Projects/Python/TianmaFinance'
 os.chdir(WorkPath)
 
 WorkPath = os.getcwd()
@@ -109,7 +109,7 @@ class StatFileClass:
 
                     
         #处理日期数据
-        self.Date =  self.RawData[self.DateLable].astype(str)        
+        self.Date =  self.RawData[self.DateLable].astype(str)      #字符串直接转换为日期数据  
         self.Time =  self.RawData[self.TimeLable].astype(str) 
         if len(self.TimeFormat) == 3: # 如果有字符串长度参数则截取
             for i in self.Time.index:
@@ -223,7 +223,8 @@ class StatFileClass:
         self.BalanceData['账户类型'] = self.CountType
         self.BalanceData['币种'] = self.Currency
         self.BalanceData['交易日期'] = self.BalanceData.index
-        self.BalanceData.reindex(columns = ['交易日期','余额', '本币余额', '银行名称', '账户类型', '币种'])
+        self.BalanceData = self.BalanceData.reindex(columns = ['交易日期','余额', '本币余额', '银行名称', '账户类型', '币种'])
+        self.BalanceData.index =  self.BalanceData['交易日期'].map(ReturnDate)
             
         #self.ResultFileName = ResultPath + '/' +self.FileNameHead + '分类结果.xlsx'       
         #self.ResultDF.to_excel(Writer,self.FileNameHead,index = False)
@@ -257,6 +258,10 @@ def ProcessFiles(DataPath,Writer):
 #去除中国银行余额字符串中的逗号
 def RemoveComma(sValue):
     return sValue.replace(',','')
+    
+def ReturnDate(sValue):
+    #return datetime.strptime(sValue,'%Y%m%d').date()
+    return datetime.strptime(sValue,'%Y%m%d')
  
     
 ProcessFiles(DataPath,Writer)
