@@ -24,7 +24,7 @@ from datetime import *
 from numpy import nan as NA
 from dateutil.parser import parse
 
-WorkPath = 'D:/_Projects/Personal/SVN/_Projects/Python/TianmaFinance'
+WorkPath = 'E:/_Projects/Personal/SVN/_Projects/Python/TianmaFinance'
 os.chdir(WorkPath)
 
 WorkPath = os.getcwd()
@@ -37,7 +37,7 @@ if not os.path.exists('Result'):
 StatRule1 = pd.read_excel(WorkPath + '/静态表.xlsx',index_col = 0) #第一页读取字段关键字
 StatRule2 = pd.read_excel(WorkPath + '/静态表.xlsx',1) #第二页读取分类规则
 ClassifyRuleDF = StatRule2['最终结果']
-ClassifyRuleDF.index = [StatRule2.银行,StatRule2.收支,StatRule2.大类,StatRule2.对方户名,StatRule2.关键字]
+ClassifyRuleDF.index = [StatRule2['银行'],StatRule2['收支'],StatRule2['大类'],StatRule2['对方户名'],StatRule2['关键字']]
 FinalResultRule = StatRule2.reindex(columns = ['收支','最终结果']).drop_duplicates()
 FinalResultRule.index = FinalResultRule['收支']
 FinalResultRule = FinalResultRule.reindex(columns = ['最终结果'])
@@ -258,14 +258,15 @@ def ProcessFiles(DataPath,Writer):
 #去除中国银行余额字符串中的逗号
 def RemoveComma(sValue):
     return sValue.replace(',','')
-    
+
+#处理交易日期数据
 def ReturnDate(sValue):
     #return datetime.strptime(sValue,'%Y%m%d').date()
     return datetime.strptime(sValue,'%Y%m%d')
  
     
-ProcessFiles(DataPath,Writer)
-#A = StatFileClass('中国银行.xls'); 
+#ProcessFiles(DataPath,Writer)
+A = StatFileClass('中国银行.xls'); 
 #A = StatFileClass('中国银行美元待核查户.xls'); 
 #A = StatFileClass('农业银行.xls'); 
 #B = A.Summary
