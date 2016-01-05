@@ -24,7 +24,7 @@ from datetime import *
 from numpy import nan as NA
 from dateutil.parser import parse
 
-WorkPath = 'E:/_Projects/Personal/SVN/_Projects/Python/TianmaFinance'
+WorkPath = 'D:/_Projects/Personal/SVN/_Projects/Python/TianmaFinance'
 os.chdir(WorkPath)
 
 WorkPath = os.getcwd()
@@ -43,8 +43,9 @@ FinalResultRule.index = FinalResultRule['收支']
 FinalResultRule = FinalResultRule.reindex(columns = ['最终结果'])
 FinalResultIncome = FinalResultRule.ix['收入',:]
 FinalResultPayment = FinalResultRule.ix['支出',:]
-FinalDetail = DataFrame([NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA],index = ['交易日期', '交易时间', '收入', '本币收入','收支类型', '大类', '对方户名', '子类', '分类结果',
-       '银行名称', '账户类型', '币种']).T
+FinalDetail = DataFrame([NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA],index = ['交易日期', '交易时间', '收入', '本币收入','收支类型', '大类', '对方户名', '子类', '分类结果','银行名称', '账户类型', '币种']).T
+FinalDetail2 = DataFrame([NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA,NA],index = ['银行名称', '交易日期', '交易时间', '收支类型', '币种', '交易原币金额', '汇率', '交易本币金额', '大类',
+       '子类', '分类结果', '对方户名']).T
 FinalBalance = DataFrame([NA,NA,NA,NA,NA,NA],index = ['交易日期','余额', '本币余额', '银行名称', '账户类型', '币种']).T
 #FinalSummary = DataFrame([NA,NA,NA,NA,NA,NA,NA,NA],index = ['原币收入', '本币收入','银行名称', '账户类型', '币种', '交易日期', '收支类型', '分类结果']).T
 
@@ -84,6 +85,15 @@ class StatFileClass:
         self.ERateUSD = StatRule1.ix[self.BankName,'美元汇率']
         self.ERateJPY = StatRule1.ix[self.BankName,'日元汇率']
         
+        #计算汇率
+        if self.Currency == 'USD':
+            self.ERate = self.ERateUSD
+        elif self.Currency == 'JPY':
+            self.ERate = self.ERateJPY
+        else:
+            self.ERate = 1
+
+        
         #判断收入支出类型
         if self.IncomeLable != self.PayLable: #非中国银行，将收入和支出合并
             self.RawData = pd.read_excel(self.FileName,skiprows = self.SkipRows,converters = {self.IncomeLable : str, self.PayLable : str,self.BalanceLable : str})
@@ -101,13 +111,8 @@ class StatFileClass:
                 self.IncomeType[i] = '支出'  
         
         #计算本币收入及余额
-        self.IncomeDataLocal = self.IncomeData
-        if self.Currency == 'USD':
-            self.IncomeDataLocal = self.IncomeData * self.ERateUSD
-        elif self.Currency == 'JPY':
-            self.IncomeDataLocal = self.IncomeData * self.ERateJPY
-
-                    
+        self.IncomeDataLocal = self.IncomeData * self.ERate
+  
         #处理日期数据
         self.Date =  self.RawData[self.DateLable].astype(str)      #字符串直接转换为日期数据  
         self.Time =  self.RawData[self.TimeLable].astype(str) 
@@ -125,8 +130,10 @@ class StatFileClass:
         
         #获取交易户名数据
         self.CountName = Series(np.zeros(self.IncomeData.shape[0]))  #初始化
+        self.CountData = Series(np.zeros(self.IncomeData.shape[0]))  #初始化
         if self.CountLable == '无':
             self.CountName[:] = '无'
+            self.CountData[:] = '无'
         else:
             self.CountData = self.RawData[self.CountLable]
             self.CountData.fillna('无',inplace = True)
@@ -148,19 +155,21 @@ class StatFileClass:
         self.KeyWord2 = Series(np.zeros(self.IncomeData.shape[0]))  #初始化
         self.KeyData2 = self.RawData[self.KeyLable2]
         self.KeyData2.fillna(' ',inplace = True) #由于有多个关键字段，空值不能赋为'无'，而是空格
+        self.KeyData2 = self.KeyData2.apply(JoinStr,axis = 1)
         self.ClassifyResult = Series(np.zeros(self.IncomeData.shape[0]))  #初始化
         for i in range(self.KeyData2.shape[0]):
             TempData = list(set(list(ClassifyRuleDF.ix[self.BankName].ix[self.IncomeType[i]].ix[self.KeyWord1[i]].ix[self.CountName[i]].index)))
             if len(TempData) == 1: #子类字段只有一个
                 self.KeyWord2[i] = TempData[0]
             else:
-                TempKeyWord = [m.split('+') for m in TempData]   #按分隔符分割关键字
-                TempKeyWord.sort(key = lambda x:len(x),reverse = True) #按关键字个数排序；关键字越多，排序越靠前
+                TempKeyWord = [m.split('+') for m in TempData]   #按分隔符分割关键字,[['银票托收'],['销售收入'],['BEPS'],['BEPS','网吧']]
+                TempKeyWord.sort(key = lambda x:len(x),reverse = True) #按关键字个数排序；关键字越多，排序越靠前,[['BEPS','网吧'],['银票托收'],['销售收入'],['BEPS']]
                 bFindResult = False
-                for j in TempKeyWord:
+                for j in TempKeyWord: # j = ['BEPS','网吧']
                     bFindResult2 = True
-                    for k in j:
-                        if k not in str(list(self.KeyData2.ix[i])):   #只要有一个关键字不匹配，则放弃搜索该关键字           
+                    for k in j: # k = 'BEPS'
+                        #if k not in str(list(self.KeyData2.ix[i])):   #只要有一个关键字不匹配，则放弃搜索该关键字   
+                        if k not in self.KeyData2.ix[i]:
                             bFindResult2 = False
                             break
                     if bFindResult2:    #全部关键字匹配，则认为匹配成功
@@ -205,6 +214,15 @@ class StatFileClass:
         self.ResultDF['账户类型'] = self.CountType
         self.ResultDF['币种'] = self.Currency
         
+        self.ResultDF2 = pd.concat([self.Date,self.Time,self.IncomeType,self.IncomeData,self.IncomeDataLocal,self.KeyWord1,self.CountData,self.KeyData2,self.ClassifyResult],axis = 1)
+        self.ResultDF2.columns = ['交易日期','交易时间','收支类型','交易原币金额','交易本币金额','大类','对方户名','子类','分类结果'] 
+        self.ResultDF2['银行名称'] = self.FileNameHead
+        self.ResultDF2['汇率'] = self.ERate
+        self.ResultDF2['币种'] = self.Currency
+        self.ResultDF2 = self.ResultDF2.reindex(columns = ['银行名称','交易日期','交易时间','收支类型','币种','交易原币金额','汇率','交易本币金额','大类','子类','分类结果','对方户名'])
+        
+        
+        
         #单日余额汇总
         #余额数据导入
         self.BalanceData =  self.RawData[self.BalanceLable]
@@ -213,11 +231,7 @@ class StatFileClass:
         self.BalanceData = self.BalanceData.applymap(RemoveComma) #对每个元素去除逗号
         self.BalanceData = self.BalanceData.astype(float)
         #计算本币余额
-        self.BalanceDataLocal = self.BalanceData
-        if self.Currency == 'USD':
-            self.BalanceDataLocal = self.BalanceData * self.ERateUSD
-        elif self.Currency == 'JPY':
-            self.BalanceDataLocal = self.BalanceData * self.ERateJPY
+        self.BalanceDataLocal = self.BalanceData * self.ERate
         self.BalanceData['本币余额'] = self.BalanceDataLocal
         self.BalanceData['银行名称'] = self.BankName
         self.BalanceData['账户类型'] = self.CountType
@@ -230,15 +244,17 @@ class StatFileClass:
         #self.ResultDF.to_excel(Writer,self.FileNameHead,index = False)
 
 def ProcessFiles(DataPath,Writer):
-    global FinalDetail,FinalSummary,FinalBalance
+    global FinalDetail,FinalDetail2,FinalSummary,FinalBalance
     for FileName in os.listdir(DataPath):
         if ('银行'  in FileName) and ('xls' in FileName):
             print('正在处理:' + FileName)
             TempClass = StatFileClass(FileName);  
             FinalDetail = pd.concat([FinalDetail,TempClass.ResultDF])
+            FinalDetail2 = pd.concat([FinalDetail2,TempClass.ResultDF2])
             FinalBalance = pd.concat([FinalBalance,TempClass.BalanceData])
             #FinalSummary = pd.concat([FinalSummary,TempClass.Summary])
     FinalDetail.dropna(how = 'all',inplace = True)   #去掉第一行
+    FinalDetail2.dropna(how = 'all',inplace = True)   #去掉第一行
     FinalBalance.dropna(how = 'all',inplace = True)   #去掉第一行
     #FinalSummary.dropna(how = 'all',inplace = True)   #去掉第一行
     #DaySummary = FinalDetail.groupby(['交易日期','收支类型','分类结果'])['本币收入'].sum()
@@ -246,7 +262,8 @@ def ProcessFiles(DataPath,Writer):
     DaySummary.drop(['收入'],axis = 1,inplace = True)
     BankSummary = FinalDetail.groupby(['交易日期','账户类型','银行名称','币种']).sum()
     BalanceSummary = FinalBalance.groupby(['交易日期','账户类型','银行名称','币种']).sum()
-    FinalDetail.to_excel(Writer,'明细汇总')
+    #FinalDetail.to_excel(Writer,'明细汇总')
+    FinalDetail2.to_excel(Writer,'明细汇总')
     FinalBalance.to_excel(Writer,'余额明细')
     #FinalSummary.to_excel(Writer,'分类汇总')
     DaySummary.to_excel(Writer,'当日汇总')
@@ -259,14 +276,16 @@ def ProcessFiles(DataPath,Writer):
 def RemoveComma(sValue):
     return sValue.replace(',','')
 
-#处理交易日期数据
+#将字符串转换为datetime数据
 def ReturnDate(sValue):
     #return datetime.strptime(sValue,'%Y%m%d').date()
     return datetime.strptime(sValue,'%Y%m%d')
- 
     
-#ProcessFiles(DataPath,Writer)
-A = StatFileClass('中国银行.xls'); 
+def JoinStr(Temp):
+    return(','.join(list(Temp)))
+    
+ProcessFiles(DataPath,Writer)
+#A = StatFileClass('中国银行.xls'); 
 #A = StatFileClass('中国银行美元待核查户.xls'); 
 #A = StatFileClass('农业银行.xls'); 
 #B = A.Summary
