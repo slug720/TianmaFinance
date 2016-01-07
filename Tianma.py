@@ -24,7 +24,7 @@ from datetime import *
 from numpy import nan as NA
 from dateutil.parser import parse
 
-WorkPath = 'D:/_Projects/Personal/SVN/_Projects/Python/TianmaFinance'
+WorkPath = 'E:/_Projects/Personal/SVN/_Projects/Python/TianmaFinance'
 os.chdir(WorkPath)
 
 WorkPath = os.getcwd()
@@ -270,21 +270,21 @@ def ProcessFiles(DataPath,Writer):
     DaySummary = DaySummary.unstack()
     DaySummary = DaySummary.swaplevel('分类结果','收支类型',axis = 1)
     #收入
-    TempIndex = list(FinalResultIncome['最终结果'])
-    DaySummaryIncome = DaySummary['收入'][TempIndex]
+    TempIncomeIndex = list(FinalResultIncome['最终结果'])
+    DaySummaryIncome = DaySummary['收入'][TempIncomeIndex]
     DaySummaryIncomeRound = DaySummaryIncome.div(10000)
     DaySummaryIncomeRound = DaySummaryIncomeRound.applymap(round)
     DaySummaryIncomeRound = DaySummaryIncomeRound.where(DaySummaryIncomeRound != 0, NA) #将0处理为NA值
     DaySummaryIncomeRound = DaySummaryIncomeRound.applymap(ConvStr)
-    DaySummaryIncome['当日主要事项'] = DaySummaryIncomeRound.apply(MainEventStr,axis = 1)
+    DaySummaryIncome['当日主要事项'] = DaySummaryIncomeRound.apply(MainEventIncomeStr,axis = 1)
     #支出
-    TempIndex = list(FinalResultPayment['最终结果'])
-    DaySummaryPayment = DaySummary['支出'][TempIndex]
+    TempPaymentIndex = list(FinalResultPayment['最终结果'])
+    DaySummaryPayment = DaySummary['支出'][TempPaymentIndex]
     DaySummaryPaymentRound = -DaySummaryPayment.div(10000)
     DaySummaryPaymentRound = DaySummaryPaymentRound.applymap(round)
     DaySummaryPaymentRound = DaySummaryPaymentRound.where(DaySummaryPaymentRound != 0, NA) #将0处理为NA值
     DaySummaryPaymentRound = DaySummaryPaymentRound.applymap(ConvStr)
-    DaySummaryPayment['当日主要事项'] = DaySummaryPaymentRound.apply(MainEventStr,axis = 1)
+    DaySummaryPayment['当日主要事项'] = DaySummaryPaymentRound.apply(MainEventPaymentStr,axis = 1)
     
     #处理余额
     #BalanceSummary = FinalBalance.groupby(['交易日期','账户类型','银行名称','币种']).sum()
@@ -293,8 +293,8 @@ def ProcessFiles(DataPath,Writer):
     BalanceSummary = BalanceSummary.unstack().unstack()
     BalanceSummary.fillna(method = 'ffill',inplace = True)
     BalanceSummary = BalanceSummary.dropna(how = 'all',axis = 1)    
-    BalanceSummary = BalanceSummary.stack().stack()
     BalanceSummary.fillna(0,inplace = True)
+    BalanceSummary = BalanceSummary.stack().stack()
     BalanceSummary['综合本位币'] = BalanceSummary['CNY'] + BalanceSummary['USD'].mul(ERateUSD) + BalanceSummary['JPY'].mul(ERateJPY)
     
     
@@ -302,20 +302,38 @@ def ProcessFiles(DataPath,Writer):
     BankSummary = FinalDetail.groupby(['收支类型','分类结果','银行名称','账户类型','交易日期']).sum()
     BankSummary = BankSummary['本币收入'].unstack().unstack().unstack().T
     BankSummary = BankSummary.unstack().unstack()
-    BankSummary.fillna(0,inplace = True)
     BankSummary = BankSummary.dropna(how = 'all',axis = 1)  
+    BankSummary.fillna(0,inplace = True)
     BankSummary = BankSummary.stack().stack()
+    #收入
+    BankSummaryIncome = BankSummary['收入']
+    BankSummaryIncome = BankSummaryIncome.reindex(columns = TempIncomeIndex)
+    BankSummaryIncomeRound = BankSummaryIncome.div(10000)
+    BankSummaryIncomeRound = BankSummaryIncomeRound.applymap(round)
+    BankSummaryIncomeRound = BankSummaryIncomeRound.where(BankSummaryIncomeRound != 0, NA) #将0处理为NA值
+    BankSummaryIncomeRound = BankSummaryIncomeRound.applymap(ConvStr)
+    BankSummaryIncome['当日主要事项'] = BankSummaryIncomeRound.apply(MainEventIncomeStr,axis = 1)
+    #支出
+    BankSummaryPayment = BankSummary['支出']
+    BankSummaryPayment = BankSummaryPayment.reindex(columns = TempPaymentIndex)
+    BankSummaryPaymentRound = -BankSummaryPayment.div(10000)
+    BankSummaryPaymentRound = BankSummaryPaymentRound.applymap(round)
+    BankSummaryPaymentRound = BankSummaryPaymentRound.where(BankSummaryPaymentRound != 0, NA) #将0处理为NA值
+    BankSummaryPaymentRound = BankSummaryPaymentRound.applymap(ConvStr)
+    BankSummaryPayment['当日主要事项'] = BankSummaryPaymentRound.apply(MainEventPaymentStr,axis = 1)
+    #收入+支出
+    BalanceSummary['当日主要事项'] = BankSummaryIncome['当日主要事项'] + BankSummaryPayment['当日主要事项']
     
  
     #FinalDetail.to_excel(Writer,'明细汇总')
     FinalDetail2.to_excel(Writer,'明细汇总')
-    FinalBalance.to_excel(Writer,'余额明细')
+    #FinalBalance.to_excel(Writer,'余额明细')
     #FinalSummary.to_excel(Writer,'分类汇总')
     #DaySummary.to_excel(Writer,'当日汇总')
     DaySummaryIncome.to_excel(Writer,'每日收入汇总(本币)')
     DaySummaryPayment.to_excel(Writer,'每日支出汇总(本币)')
-    BankSummary.to_excel(Writer,'银行汇总')
-    #BalanceSummary.to_excel(Writer,'余额汇总')
+    #BankSummary.to_excel(Writer,'银行汇总')
+    BalanceSummary.to_excel(Writer,'余额汇总')
     Writer.save()
     print('处理完毕!')
 
@@ -337,12 +355,25 @@ def ConvStr(Temp):
     else:       
         return(str(int(Temp))+'万元')
 
-def MainEventStr(Temp):
+def MainEventIncomeStr(Temp):
     TempStr = ''
     Temp2 = Temp.dropna()
     for i in Temp2.index:
         TempStr = TempStr+ str(i) + ' : ' + Temp2[i] + '; '
-    return(TempStr)
+    if TempStr != '':
+        return('收入 : ' + TempStr)
+    else:
+        return(TempStr)
+        
+def MainEventPaymentStr(Temp):
+    TempStr = ''
+    Temp2 = Temp.dropna()
+    for i in Temp2.index:
+        TempStr = TempStr+ str(i) + ' : ' + Temp2[i] + '; '
+    if TempStr != '':
+        return('支出 : ' + TempStr)
+    else:
+        return(TempStr)
     
 ProcessFiles(DataPath,Writer)
 #A = StatFileClass('中国银行.xls'); 
