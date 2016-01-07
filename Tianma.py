@@ -24,7 +24,7 @@ from datetime import *
 from numpy import nan as NA
 from dateutil.parser import parse
 
-WorkPath = 'E:/_Projects/Personal/SVN/_Projects/Python/TianmaFinance'
+WorkPath = 'D:/_Projects/Personal/SVN/_Projects/Python/TianmaFinance'
 os.chdir(WorkPath)
 
 WorkPath = os.getcwd()
@@ -38,6 +38,8 @@ StatRule1 = pd.read_excel(WorkPath + '/静态表.xlsx',index_col = 0) #第一页
 StatRule2 = pd.read_excel(WorkPath + '/静态表.xlsx',1) #第二页读取分类规则
 ClassifyRuleDF = StatRule2['最终结果']
 ClassifyRuleDF.index = [StatRule2['银行'],StatRule2['收支'],StatRule2['大类'],StatRule2['对方户名'],StatRule2['关键字']]
+ERateUSD = StatRule1['美元汇率'][0] #美元汇率
+ERateJPY = StatRule1['日元汇率'][0] #日元汇率
 FinalResultRule = StatRule2.reindex(columns = ['收支','最终结果']).drop_duplicates()
 FinalResultRule.index = FinalResultRule['收支']
 FinalResultRule = FinalResultRule.reindex(columns = ['最终结果'])
@@ -286,12 +288,24 @@ def ProcessFiles(DataPath,Writer):
     
     #处理余额
     #BalanceSummary = FinalBalance.groupby(['交易日期','账户类型','银行名称','币种']).sum()
-    BalanceSummary = FinalBalance.groupby(['交易日期','币种','银行名称','账户类型']).sum()
-    BalanceSummary = BalanceSummary['余额'].unstack().unstack().unstack()
-    BalanceSummary = BalanceSummary.fillna(method = 'ffill')
+    BalanceSummary = FinalBalance.groupby(['币种','银行名称','账户类型','交易日期']).sum()
+    BalanceSummary = BalanceSummary['余额'].unstack().unstack().unstack().T
+    BalanceSummary = BalanceSummary.unstack().unstack()
+    BalanceSummary.fillna(method = 'ffill',inplace = True)
+    BalanceSummary = BalanceSummary.dropna(how = 'all',axis = 1)    
+    BalanceSummary = BalanceSummary.stack().stack()
+    BalanceSummary.fillna(0,inplace = True)
+    BalanceSummary['综合本位币'] = BalanceSummary['CNY'] + BalanceSummary['USD'].mul(ERateUSD) + BalanceSummary['JPY'].mul(ERateJPY)
+    
     
     #处理银行汇总
-    BankSummary = FinalDetail.groupby(['交易日期','账户类型','银行名称','币种']).sum()
+    BankSummary = FinalDetail.groupby(['收支类型','分类结果','银行名称','账户类型','交易日期']).sum()
+    BankSummary = BankSummary['本币收入'].unstack().unstack().unstack().T
+    BankSummary = BankSummary.unstack().unstack()
+    BankSummary.fillna(0,inplace = True)
+    BankSummary = BankSummary.dropna(how = 'all',axis = 1)  
+    BankSummary = BankSummary.stack().stack()
+    
  
     #FinalDetail.to_excel(Writer,'明细汇总')
     FinalDetail2.to_excel(Writer,'明细汇总')
@@ -301,7 +315,7 @@ def ProcessFiles(DataPath,Writer):
     DaySummaryIncome.to_excel(Writer,'每日收入汇总(本币)')
     DaySummaryPayment.to_excel(Writer,'每日支出汇总(本币)')
     BankSummary.to_excel(Writer,'银行汇总')
-    BalanceSummary.to_excel(Writer,'余额汇总')
+    #BalanceSummary.to_excel(Writer,'余额汇总')
     Writer.save()
     print('处理完毕!')
 
