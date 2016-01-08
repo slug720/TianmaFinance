@@ -295,8 +295,11 @@ def ProcessFiles(DataPath,Writer):
     BalanceSummary = BalanceSummary.dropna(how = 'all',axis = 1)    
     BalanceSummary.fillna(0,inplace = True)
     BalanceSummary = BalanceSummary.stack().stack()
-    BalanceSummary['综合本位币'] = BalanceSummary['CNY'] + BalanceSummary['USD'].mul(ERateUSD) + BalanceSummary['JPY'].mul(ERateJPY)
-    
+    BalanceSummary['综合本位币'] = BalanceSummary['CNY'].fillna(0) + BalanceSummary['USD'].fillna(0).mul(ERateUSD) + BalanceSummary['JPY'].fillna(0).mul(ERateJPY) #若没有fillna,则若有NA的项则不会计算综合本币值
+    BalanceDayDiff = BalanceSummary['综合本位币'].unstack().unstack()
+    BalanceDayDiff = BalanceDayDiff - BalanceDayDiff.shift(1) #与上一日差异；shift方法:移位
+    BalanceDayDiff = BalanceDayDiff.stack().stack()
+    BalanceSummary['与上一日差异'] = BalanceDayDiff
     
     #处理银行汇总
     BankSummary = FinalDetail.groupby(['收支类型','分类结果','银行名称','账户类型','交易日期']).sum()
@@ -359,7 +362,7 @@ def MainEventIncomeStr(Temp):
     TempStr = ''
     Temp2 = Temp.dropna()
     for i in Temp2.index:
-        TempStr = TempStr+ str(i) + ' : ' + Temp2[i] + '; '
+        TempStr = TempStr+ str(i)  + Temp2[i] + '; '
     if TempStr != '':
         return('收入 : ' + TempStr)
     else:
@@ -369,7 +372,7 @@ def MainEventPaymentStr(Temp):
     TempStr = ''
     Temp2 = Temp.dropna()
     for i in Temp2.index:
-        TempStr = TempStr+ str(i) + ' : ' + Temp2[i] + '; '
+        TempStr = TempStr+ str(i)  + Temp2[i] + '; '
     if TempStr != '':
         return('支出 : ' + TempStr)
     else:
