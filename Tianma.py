@@ -14,18 +14,19 @@ Created on Tue Dec  8 22:49:49 2015
 #==============================================================================
 #==============================================================================
 
-from pandas import DataFrame, Series
-import pandas as pd
-import numpy as np
-import math
-import string
+from pandas import DataFrame, Series, read_excel, ExcelWriter, concat
+#import pandas as pd
+#import numpy as np
+from numpy import zeros,isnan
+#import math
+#import string
 import os
 from datetime import * 
 from numpy import nan as NA
-from dateutil.parser import parse
+#from dateutil.parser import parse
 
-WorkPath = 'E:/_Projects/Personal/SVN/_Projects/Python/TianmaFinance'
-os.chdir(WorkPath)
+#WorkPath = 'E:/_Projects/Personal/SVN/_Projects/Python/TianmaFinance'
+#os.chdir(WorkPath)
 
 WorkPath = os.getcwd()
 DataPath = WorkPath + '/Data'
@@ -34,8 +35,8 @@ if not os.path.exists('Result'):
     os.mkdir('Result')  #如果无Result文件夹则创建Result文件夹
 
 #读取分类规则
-StatRule1 = pd.read_excel(WorkPath + '/静态表.xlsx',index_col = 0) #第一页读取字段关键字
-StatRule2 = pd.read_excel(WorkPath + '/静态表.xlsx',1) #第二页读取分类规则
+StatRule1 = read_excel(WorkPath + '/静态表.xlsx',index_col = 0) #第一页读取字段关键字
+StatRule2 = read_excel(WorkPath + '/静态表.xlsx',1) #第二页读取分类规则
 ClassifyRuleDF = StatRule2['最终结果']
 ClassifyRuleDF.index = [StatRule2['银行'],StatRule2['收支'],StatRule2['大类'],StatRule2['对方户名'],StatRule2['关键字']]
 ERateUSD = StatRule1['美元汇率'][0] #美元汇率
@@ -53,7 +54,7 @@ FinalBalance = DataFrame([NA,NA,NA,NA,NA,NA],index = ['交易日期','余额', '
 
 
 
-Writer = pd.ExcelWriter(ResultPath  + '/分类结果.xlsx')
+Writer = ExcelWriter(ResultPath  + '/分类结果.xlsx')
 os.chdir(DataPath)
 
 class StatFileClass:
@@ -98,14 +99,14 @@ class StatFileClass:
         
         #判断收入支出类型
         if self.IncomeLable != self.PayLable: #非中国银行，将收入和支出合并
-            self.RawData = pd.read_excel(self.FileName,skiprows = self.SkipRows,converters = {self.IncomeLable : str, self.PayLable : str,self.BalanceLable : str})
+            self.RawData = read_excel(self.FileName,skiprows = self.SkipRows,converters = {self.IncomeLable : str, self.PayLable : str,self.BalanceLable : str})
             self.IncomeData =  self.RawData[self.IncomeLable].astype(float).fillna(0)
             self.PayData =  self.RawData[self.PayLable].astype(float).fillna(0)
             self.IncomeData = self.IncomeData -  self.PayData
         else:
-            self.RawData = pd.read_excel(self.FileName,skiprows = self.SkipRows,converters = {self.IncomeLable : str,self.BalanceLable : str})
+            self.RawData = read_excel(self.FileName,skiprows = self.SkipRows,converters = {self.IncomeLable : str,self.BalanceLable : str})
             self.IncomeData =  self.RawData[self.IncomeLable].astype(float)
-        self.IncomeType = Series(np.zeros(self.IncomeData.shape[0])) #初始化
+        self.IncomeType = Series(zeros(self.IncomeData.shape[0])) #初始化
         for i in range(self.IncomeData.shape[0]):
             if self.IncomeData[i] > 0:
                 self.IncomeType[i] = '收入'
@@ -124,15 +125,15 @@ class StatFileClass:
         for i in self.Time.index:
             self.Time[i] = datetime.strptime(self.Time[i],self.TimeFormat[0]).strftime('%H:%M:%S') #按照格式处理为时间数据,再转化为格式化的字符串        
         #获取大类数据
-        self.KeyWord1 = Series(np.zeros(self.IncomeData.shape[0]))  #初始化
+        self.KeyWord1 = Series(zeros(self.IncomeData.shape[0]))  #初始化
         if self.KeyLable1 == '无':
             self.KeyWord1[:] = '无'
         else:
             self.KeyWord1 = self.RawData[self.KeyLable1]
         
         #获取交易户名数据
-        self.CountName = Series(np.zeros(self.IncomeData.shape[0]))  #初始化
-        self.CountData = Series(np.zeros(self.IncomeData.shape[0]))  #初始化
+        self.CountName = Series(zeros(self.IncomeData.shape[0]))  #初始化
+        self.CountData = Series(zeros(self.IncomeData.shape[0]))  #初始化
         if self.CountLable == '无':
             self.CountName[:] = '无'
             self.CountData[:] = '无'
@@ -154,11 +155,11 @@ class StatFileClass:
                         self.CountName[i] = '无'
                         
         #获取子类数据并分类
-        self.KeyWord2 = Series(np.zeros(self.IncomeData.shape[0]))  #初始化
+        self.KeyWord2 = Series(zeros(self.IncomeData.shape[0]))  #初始化
         self.KeyData2 = self.RawData[self.KeyLable2]
         self.KeyData2.fillna(' ',inplace = True) #由于有多个关键字段，空值不能赋为'无'，而是空格
         self.KeyData2 = self.KeyData2.apply(JoinStr,axis = 1)
-        self.ClassifyResult = Series(np.zeros(self.IncomeData.shape[0]))  #初始化
+        self.ClassifyResult = Series(zeros(self.IncomeData.shape[0]))  #初始化
         for i in range(self.KeyData2.shape[0]):
             TempData = list(set(list(ClassifyRuleDF.ix[self.BankName].ix[self.IncomeType[i]].ix[self.KeyWord1[i]].ix[self.CountName[i]].index)))
             if len(TempData) == 1: #子类字段只有一个
@@ -192,7 +193,7 @@ class StatFileClass:
 #         self.Summary = self.IncomeData.copy()
 #         self.Summary.index = [self.Date,self.IncomeType,self.ClassifyResult]
 #         TempIndex = set(list(self.Summary.index)) #合并日期、收入类型、分类结果都相同的项
-#         TempIncome = np.array([self.Summary.ix[i].sum() for i in TempIndex])
+#         TempIncome = array([self.Summary.ix[i].sum() for i in TempIndex])
 #         self.Summary = DataFrame(TempIncome, columns  = ['原币收入'])
 #         TempIncomeLocal = TempIncome
 #         if self.Currency == 'USD':
@@ -210,13 +211,13 @@ class StatFileClass:
 # 
 #==============================================================================
         #结果输出
-        self.ResultDF = pd.concat([self.Date,self.Time,self.IncomeData,self.IncomeDataLocal,self.IncomeType,self.KeyWord1,self.CountName,self.KeyWord2,self.ClassifyResult],axis = 1)
+        self.ResultDF = concat([self.Date,self.Time,self.IncomeData,self.IncomeDataLocal,self.IncomeType,self.KeyWord1,self.CountName,self.KeyWord2,self.ClassifyResult],axis = 1)
         self.ResultDF.columns = ['交易日期','交易时间','收入','本币收入','收支类型','大类','对方户名','子类','分类结果'] 
         self.ResultDF['银行名称'] = self.BankName
         self.ResultDF['账户类型'] = self.CountType
         self.ResultDF['币种'] = self.Currency
         
-        self.ResultDF2 = pd.concat([self.Date,self.Time,self.IncomeType,self.IncomeData,self.IncomeDataLocal,self.KeyWord1,self.CountData,self.KeyData2,self.ClassifyResult],axis = 1)
+        self.ResultDF2 = concat([self.Date,self.Time,self.IncomeType,self.IncomeData,self.IncomeDataLocal,self.KeyWord1,self.CountData,self.KeyData2,self.ClassifyResult],axis = 1)
         self.ResultDF2.columns = ['交易日期','交易时间','收支类型','交易原币金额','交易本币金额','大类','对方户名','子类','分类结果'] 
         self.ResultDF2['银行名称'] = self.FileNameHead
         self.ResultDF2['汇率'] = self.ERate
@@ -251,10 +252,10 @@ def ProcessFiles(DataPath,Writer):
         if ('银行'  in FileName) and ('xls' in FileName):
             print('正在处理:' + FileName)
             TempClass = StatFileClass(FileName);  
-            FinalDetail = pd.concat([FinalDetail,TempClass.ResultDF])
-            FinalDetail2 = pd.concat([FinalDetail2,TempClass.ResultDF2])
-            FinalBalance = pd.concat([FinalBalance,TempClass.BalanceData])
-            #FinalSummary = pd.concat([FinalSummary,TempClass.Summary])
+            FinalDetail = concat([FinalDetail,TempClass.ResultDF])
+            FinalDetail2 = concat([FinalDetail2,TempClass.ResultDF2])
+            FinalBalance = concat([FinalBalance,TempClass.BalanceData])
+            #FinalSummary = concat([FinalSummary,TempClass.Summary])
     FinalDetail.dropna(how = 'all',inplace = True)   #去掉第一行
     FinalDetail2.dropna(how = 'all',inplace = True)   #去掉第一行
     FinalBalance.dropna(how = 'all',inplace = True)   #去掉第一行
@@ -353,7 +354,7 @@ def JoinStr(Temp):
     return(','.join(list(Temp)))
     
 def ConvStr(Temp):
-    if(np.isnan(Temp)): 
+    if(isnan(Temp)): 
         return(Temp)
     else:       
         return(str(int(Temp))+'万元')
