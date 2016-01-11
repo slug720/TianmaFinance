@@ -1,0 +1,1 @@
+pyinstaller --clean -F Tianma.py -i logo.ico
