@@ -161,32 +161,37 @@ class StatFileClass:
         self.KeyData2 = self.KeyData2.apply(JoinStr,axis = 1)
         self.ClassifyResult = Series(zeros(self.IncomeData.shape[0]))  #初始化
         for i in range(self.KeyData2.shape[0]):
-            TempData = list(set(list(ClassifyRuleDF.ix[self.BankName].ix[self.IncomeType[i]].ix[self.KeyWord1[i]].ix[self.CountName[i]].index)))
-            if len(TempData) == 1: #子类字段只有一个
-                self.KeyWord2[i] = TempData[0]
-            else:
-                TempKeyWord = [m.split('+') for m in TempData]   #按分隔符分割关键字,[['银票托收'],['销售收入'],['BEPS'],['BEPS','网吧']]
-                TempKeyWord.sort(key = lambda x:len(x),reverse = True) #按关键字个数排序；关键字越多，排序越靠前,[['BEPS','网吧'],['银票托收'],['销售收入'],['BEPS']]
-                bFindResult = False
-                for j in TempKeyWord: # j = ['BEPS','网吧']
-                    bFindResult2 = True
-                    for k in j: # k = 'BEPS'
-                        #if k not in str(list(self.KeyData2.ix[i])):   #只要有一个关键字不匹配，则放弃搜索该关键字   
-                        if k not in self.KeyData2.ix[i]:
-                            bFindResult2 = False
-                            break
-                    if bFindResult2:    #全部关键字匹配，则认为匹配成功
-                       self.KeyWord2[i] = '+'.join(j) #用+号重新连接为表中的关键字
-                       bFindResult = True                      
-                       break
-                if not bFindResult:
-                    self.KeyWord2[i] = '无'
-            if self.KeyWord2[i] in TempData:                
-                self.ClassifyResult[i] = ClassifyRuleDF.ix[self.BankName].ix[self.IncomeType[i]].ix[self.KeyWord1[i]].ix[self.CountName[i]].ix[self.KeyWord2[i]]
-                if type(self.ClassifyResult[i]) != str: #如果出现多个分类结果，取第一个;
-                    self.ClassifyResult[i] = self.ClassifyResult[i].ix[0]
-            else:
+            try:
+                TempData = list(set(list(ClassifyRuleDF.ix[self.BankName].ix[self.IncomeType[i]].ix[self.KeyWord1[i]].ix[self.CountName[i]].index)))
+                if len(TempData) == 1: #子类字段只有一个
+                    self.KeyWord2[i] = TempData[0]
+                else:
+                    TempKeyWord = [m.split('+') for m in TempData]   #按分隔符分割关键字,[['银票托收'],['销售收入'],['BEPS'],['BEPS','网吧']]
+                    TempKeyWord.sort(key = lambda x:len(x),reverse = True) #按关键字个数排序；关键字越多，排序越靠前,[['BEPS','网吧'],['银票托收'],['销售收入'],['BEPS']]
+                    bFindResult = False
+                    for j in TempKeyWord: # j = ['BEPS','网吧']
+                        bFindResult2 = True
+                        for k in j: # k = 'BEPS'
+                            #if k not in str(list(self.KeyData2.ix[i])):   #只要有一个关键字不匹配，则放弃搜索该关键字   
+                            if k not in self.KeyData2.ix[i]:
+                                bFindResult2 = False
+                                break
+                        if bFindResult2:    #全部关键字匹配，则认为匹配成功
+                           self.KeyWord2[i] = '+'.join(j) #用+号重新连接为表中的关键字
+                           bFindResult = True                      
+                           break
+                    if not bFindResult:
+                        self.KeyWord2[i] = '无'
+                if self.KeyWord2[i] in TempData:                
+                    self.ClassifyResult[i] = ClassifyRuleDF.ix[self.BankName].ix[self.IncomeType[i]].ix[self.KeyWord1[i]].ix[self.CountName[i]].ix[self.KeyWord2[i]]
+                    if type(self.ClassifyResult[i]) != str: #如果出现多个分类结果，取第一个;
+                        self.ClassifyResult[i] = self.ClassifyResult[i].ix[0]
+                else:
+                    self.ClassifyResult[i] = '分类错误'
+            except(Exception) as e:
+                print(e,', 分类错误')
                 self.ClassifyResult[i] = '分类错误'
+                
 
 #==============================================================================
 #         #产生当日分类汇总
